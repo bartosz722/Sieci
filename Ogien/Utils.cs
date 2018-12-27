@@ -11,7 +11,7 @@ namespace Ogien
         public static string FormatByteCount(long byteCount)
         {
             if (byteCount < 1024) {
-                return $"{byteCount} B";
+                return "" + byteCount + " B";
             }
             
             if (byteCount < 1024 * 1024) {
