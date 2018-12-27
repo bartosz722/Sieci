@@ -33,9 +33,11 @@ namespace Ogien
             Console.WriteLine("Create buffer of size {0} B", size);
             var ret = new byte[size];
             if (randomData) {
-                Console.WriteLine("Fill buffer with random data");
-                throw new NotImplementedException();
+                Console.WriteLine("Fill buffer with random data");                
+                var r = new Random();
+                r.NextBytes(ret);
             }
+            Console.WriteLine("Buffer created");
             return ret;
         }
     }

@@ -13,12 +13,13 @@ namespace Ogien
 {
     class Program
     {
-        const int serverSendsPort = 9876; // serwer wysyła, klient odbiera
-        //const int serverReceivePort = 9877; // serwer odbiera, klient wysyła
+        const int serverSendsPort = 9876; // server sends, client receives
+        //const int serverReceivePort = 9877; // server receives, client sends
         static int bufferSize = 0;
         static bool randomData = false;
         static byte[] writeBuffer;
         readonly static TimeSpan statusPrintInterval = TimeSpan.FromSeconds(1);
+        static TimeSpan clientTime = TimeSpan.Zero;
 
         static void Main(string[] args)
         {
@@ -62,6 +63,15 @@ namespace Ogien
                 randomData = true;                
             }
             Console.WriteLine("Random data: " + randomData);
+
+            var clientTimeString = ConfigurationManager.AppSettings["ClientTime"];
+            if (!string.IsNullOrEmpty(clientTimeString)) {
+                int clientTimeSec = int.Parse(clientTimeString);
+                if (clientTimeSec > 0) {
+                    clientTime = TimeSpan.FromSeconds(clientTimeSec);
+                }
+            }
+            Console.WriteLine("Client time: " + clientTime);
         }
                
         static void ServerMode()
@@ -83,14 +93,14 @@ namespace Ogien
 
         static void ClientMode(bool modeIn)
         {
-            Console.WriteLine("Connect...");
+            Console.WriteLine("Connect to server");
             var client = new TcpClient("localhost", serverSendsPort);
             Console.WriteLine("Connected");
-            ReceiveTestData(client.GetStream());
+            ReceiveTestData(client.GetStream(), clientTime);
         }
 
         /// <summary>
-        /// Wysyła dane aż do zamknięcia połączenia, potem funkcja się kończy.
+        /// Send data unitl the connection is closed, then the method returns.
         /// </summary>
         static void SendTestData(NetworkStream stream)
         {
@@ -113,12 +123,14 @@ namespace Ogien
             PrintSummary(startTime, bytesWritten);
         }
 
-        /// <summary>
-        /// Wysyła dane aż do zamknięcia połączenia, potem funkcja się kończy.
+        /// <summary>        
+        /// Receive data unitl the connection is closed or timeout, 
+        /// then the method returns.
         /// </summary>
-        static void ReceiveTestData(NetworkStream stream)
+        /// <param name="maxTime">max time, zero means unlimited</param>
+        static void ReceiveTestData(NetworkStream stream, TimeSpan maxTime)
         {
-            var buf = Utils.CreateBuffer(bufferSize, randomData);
+            var buf = Utils.CreateBuffer(bufferSize, false);
             long readCount = 0;
             var startTime = DateTime.Now;
             var lastStatusPrint = startTime;
@@ -127,6 +139,11 @@ namespace Ogien
                 try {
                     readCount += stream.Read(buf, 0, buf.Length);
                     PrintStatus(ref lastStatusPrint, readCount);
+
+                    if (maxTime != TimeSpan.Zero && DateTime.Now >= startTime + maxTime) {
+                        Console.WriteLine("Timeout");
+                        break;
+                    }
                 }
                 catch (IOException e) {
                     Console.WriteLine("Read error: " + e.Message);
@@ -151,10 +168,16 @@ namespace Ogien
             var duration = DateTime.Now - startTime;
             Console.WriteLine("Bytes transferred: " + Utils.FormatByteCount(bytesWritten));
             Console.WriteLine("Duration: " + duration);
-            double rate = bytesWritten / duration.TotalSeconds;
-            Console.WriteLine(
-                "Average transfer rate: {0}/s", 
-                Utils.FormatByteCount((long)Math.Round(rate)));
+
+            if (duration < TimeSpan.FromSeconds(1)) {
+                Console.WriteLine("Average transfer rate is unknown");
+            }
+            else {
+                double rate = bytesWritten / duration.TotalSeconds;
+                Console.WriteLine(
+                    "Average transfer rate: {0}/s",
+                    Utils.FormatByteCount((long)Math.Round(rate)));
+            }
         }
     }
 }
