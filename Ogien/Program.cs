@@ -112,7 +112,7 @@ namespace Ogien
                 try {
                     stream.Write(writeBuffer, 0, writeBuffer.Length);
                     bytesWritten += writeBuffer.Length;
-                    PrintStatus(ref lastStatusPrint, bytesWritten);
+                    PrintStatus(ref lastStatusPrint, bytesWritten, -1);
                 }
                 catch (IOException e) {
                     Console.WriteLine("Write error: " + e.Message);
@@ -137,8 +137,9 @@ namespace Ogien
 
             while (true) {                
                 try {
-                    readCount += stream.Read(buf, 0, buf.Length);
-                    PrintStatus(ref lastStatusPrint, readCount);
+                    var lastReadCount = stream.Read(buf, 0, buf.Length);
+                    readCount += lastReadCount;
+                    PrintStatus(ref lastStatusPrint, readCount, lastReadCount);
 
                     if (maxTime != TimeSpan.Zero && DateTime.Now >= startTime + maxTime) {
                         Console.WriteLine("Timeout");
@@ -154,26 +155,37 @@ namespace Ogien
             PrintSummary(startTime, readCount);
         }
 
-        static void PrintStatus(ref DateTime lastStatusPrint, long bytesWritten)
+        // lastTransferredBytes - bytes transferred in last operation, 
+        //      -1 means it will not be printed
+        static void PrintStatus(ref DateTime lastStatusPrint, 
+                                long totalTransferredBytes,
+                                int lastTransferredBytes)
         {
             var now = DateTime.Now;
             if (now - lastStatusPrint >= statusPrintInterval) {
-                Console.WriteLine("Bytes transferred: " + Utils.FormatByteCount(bytesWritten));
+                string msg = "Bytes transferred: " + 
+                    Utils.FormatByteCount(totalTransferredBytes);
+                if (lastTransferredBytes >= 0) {
+                    msg += ", bytes transferred in last operation: " + 
+                        Utils.FormatByteCount(lastTransferredBytes);
+                }
+                Console.WriteLine(msg);
                 lastStatusPrint = now;                
             }            
         }
 
-        static void PrintSummary(DateTime startTime, long bytesWritten)
+        static void PrintSummary(DateTime startTime, long bytesTransferred)
         {
             var duration = DateTime.Now - startTime;
-            Console.WriteLine("Bytes transferred: " + Utils.FormatByteCount(bytesWritten));
+            Console.WriteLine("Bytes transferred: " + 
+                Utils.FormatByteCount(bytesTransferred));
             Console.WriteLine("Duration: " + duration);
 
             if (duration < TimeSpan.FromSeconds(1)) {
                 Console.WriteLine("Average transfer rate is unknown");
             }
             else {
-                double rate = bytesWritten / duration.TotalSeconds;
+                double rate = bytesTransferred / duration.TotalSeconds;
                 Console.WriteLine(
                     "Average transfer rate: {0}/s",
                     Utils.FormatByteCount((long)Math.Round(rate)));
